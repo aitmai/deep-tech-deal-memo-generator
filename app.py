@@ -100,7 +100,7 @@ Sector guidance:
 - TAM: {ctx['tam_hint']}
 - Moat: {ctx['moat_keywords']}
 
-Return ONLY this JSON object. Be specific and concise — 1-2 sentences per field maximum. No preamble, no markdown fences:
+Return ONLY this JSON object. Be specific and concise — 1-2 sentences per field maximum. If you lack specific data on a company, make reasonable assumptions based on the sector, stage, and what you know — do not refuse to analyze or say data is insufficient. State assumptions clearly where needed. No preamble, no markdown fences:
 
 {{
   "executive_summary": "2 sentence investment thesis.",
@@ -148,7 +148,7 @@ def run_memo(company, sector, extra_info=""):
 
     try:
         log(f"Initiating deep tech analysis: {company} ({sector})")
-        log("Loading sector-specific analysis framework...")
+        log("Tip: add context in the optional field for better results on lesser-known companies...")
         time.sleep(0.5)
 
         prompt = build_memo_prompt(company, sector, extra_info)
