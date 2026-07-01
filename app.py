@@ -153,31 +153,55 @@ def run_memo(company, sector, extra_info=""):
 
         # Auto-research step — gather company context if none provided
         if not extra_info:
-            log("Researching company background...")
-            research_prompt = f"""Give me a concise VC-style company brief on {company} in the {sector} sector. Include:
+            log("Researching company via live web search...")
+            research_prompt = f"""Research {company} in the {sector} sector for VC investment analysis.
+
+Find and return:
 1. What they do — one sentence
 2. Founded year and HQ
-3. Funding history — rounds, amounts, lead investors, total raised
-4. Current ARR or revenue if known
-5. Valuation at last round if known
+3. Funding history — all rounds, amounts, lead investors, total raised
+4. Latest ARR or revenue metrics
+5. Valuation at last round
 6. Key competitors — 3-4 names
-7. Current status — growing, struggling, acquired, pivoting
+7. Current status and recent news
 8. Why a VC would be interested — one sentence
 9. Biggest risk — one sentence
 
-Be specific with numbers. If uncertain, give a range. Keep it under 150 words total. Plain text, no formatting."""
+Be specific with real numbers. Plain text, under 150 words."""
 
-            research_response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=500,
-                messages=[{"role": "user", "content": research_prompt}]
-            )
+            research_messages = [{"role": "user", "content": research_prompt}]
             auto_context = ""
-            for block in research_response.content:
-                if hasattr(block, "text") and block.text:
-                    auto_context += block.text
+
+            for attempt in range(6):
+                research_response = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=800,
+                    tools=[{"type": "web_search_20250305", "name": "web_search"}],
+                    messages=research_messages
+                )
+                for block in research_response.content:
+                    if hasattr(block, "text") and block.text:
+                        auto_context += block.text
+
+                if research_response.stop_reason == "end_turn":
+                    break
+
+                if research_response.stop_reason == "tool_use":
+                    research_messages.append({"role": "assistant", "content": research_response.content})
+                    tool_results = []
+                    for block in research_response.content:
+                        if block.type == "tool_use":
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Search completed."
+                            })
+                    research_messages.append({"role": "user", "content": tool_results})
+                else:
+                    break
+
             extra_info = auto_context.strip()
-            log("Company research complete. Building sector analysis...")
+            log("Live research complete. Building sector analysis...")
         else:
             log("Using provided context. Building sector analysis...")
 
