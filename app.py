@@ -88,7 +88,9 @@ SECTOR_WEIGHTS = {
 
 def build_memo_prompt(company, sector, extra_info=""):
     ctx = SECTOR_CONTEXT[sector]
-    return f"""You are a senior VC associate at a deep tech fund preparing a concise Investment Committee memo.
+    return f"""You are a senior VC associate at a corporate venture capital fund (CVC) backed by a large industrial or technology corporation. The fund invests in deep tech startups across AI, space tech, robotics/automation, and advanced materials.
+
+IMPORTANT: This is a corporate CVC, not a traditional VC fund. Strategic fit with the corporate parent's core business is a key investment criterion alongside financial returns. A company with strong technical differentiation relevant to the corporate parent's industry should score higher than pure financial metrics suggest — even if commercial traction is early or data is limited.
 
 Company: {company}
 Sector: {sector}
@@ -100,10 +102,10 @@ Sector guidance:
 - TAM: {ctx['tam_hint']}
 - Moat: {ctx['moat_keywords']}
 
-Return ONLY this JSON object. Be specific and concise — 1-2 sentences per field maximum. If you lack specific data on a company, make reasonable assumptions based on the sector, stage, and what you know — do not refuse to analyze or say data is insufficient. State assumptions clearly where needed. No preamble, no markdown fences:
+Return ONLY this JSON object. Be specific and concise — 1-2 sentences per field maximum. If you lack specific data, make reasonable assumptions based on sector and stage — do not refuse to analyze. State assumptions clearly. No preamble, no markdown fences:
 
 {{
-  "executive_summary": "2 sentence investment thesis.",
+  "executive_summary": "2 sentence investment thesis from a corporate CVC perspective.",
   "market_opportunity": {{
     "tam": "TAM estimate with methodology",
     "sam": "SAM with reasoning",
@@ -122,17 +124,28 @@ Return ONLY this JSON object. Be specific and concise — 1-2 sentences per fiel
     "valuation_context": "Last known valuation or comp deals"
   }},
   "risk_scores": {{
-    "technical_risk": {{"score": 3, "reasoning": "One sentence"}},
-    "capital_intensity": {{"score": 3, "reasoning": "One sentence"}},
-    "regulatory_exposure": {{"score": 3, "reasoning": "One sentence"}},
-    "hardware_dependency": {{"score": 3, "reasoning": "One sentence"}}
+    "technical_risk": {{"score": 3, "reasoning": "One sentence. Score MUST be an integer between 1 and 5 only."}},
+    "capital_intensity": {{"score": 3, "reasoning": "One sentence. Score MUST be an integer between 1 and 5 only."}},
+    "regulatory_exposure": {{"score": 3, "reasoning": "One sentence. Score MUST be an integer between 1 and 5 only."}},
+    "hardware_dependency": {{"score": 3, "reasoning": "One sentence. Score MUST be an integer between 1 and 5 only."}}
+  }},
+  "IMPORTANT_SCORING_RULE": "All risk scores above MUST be integers 1-5. Never use 6, 7, or any value outside 1-5.",
+  "strategic_fit": {{
+    "score": 3,
+    "corporate_relevance": "1 sentence on how this technology benefits the corporate parent's core business.",
+    "partnership_potential": "1 sentence on whether the corporate parent could be a customer, manufacturing partner, or distribution channel.",
+    "competitive_intelligence": "1 sentence on whether investing gives the corporate parent visibility into a disruptive or enhancing technology."
   }},
   "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
-  "recommendation": "Pass",
-  "recommendation_reasoning": "2 sentences. Be direct. Focus on fund-thesis fit — does this company belong in a deep tech fund's portfolio?",
+  "financial_recommendation": "Pursue or Monitor or Pass — choose exactly one word only",
+  "financial_recommendation_reasoning": "1-2 sentences on financial return potential — traction, moat, market size, capital efficiency.",
+  "strategic_recommendation": "Pursue or Monitor or Pass — choose exactly one word only",
+  "strategic_recommendation_reasoning": "1-2 sentences on strategic value to the corporate parent — relevance, partnership potential, competitive intelligence value.",
+  "recommendation": "Pursue or Monitor or Pass — choose exactly one of these three words only, no other text",
+  "recommendation_reasoning": "2 sentences. Combined verdict weighing financial returns AND strategic fit. If strategic fit is strong, recommend Pursue or Monitor even with limited financial data.",
   "company_grade": "A",
-  "company_grade_reasoning": "2 sentences. Grade the company as a standalone business independent of fund fit. Use A/B/C/D/F scale: A=exceptional business, B=solid with real potential, C=viable but challenged, D=struggling, F=not a real business."
+  "company_grade_reasoning": "2 sentences. Grade as standalone business independent of fund fit. A=exceptional, B=solid, C=viable, D=struggling, F=not viable."
 }}"""
 
 
@@ -300,6 +313,28 @@ Be specific with real numbers. Plain text, under 150 words."""
 
         memo = json.loads(clean)
 
+        # Clamp all risk scores to valid 1-5 range
+        risk_scores = memo.get("risk_scores", {})
+        for dim in risk_scores:
+            if isinstance(risk_scores[dim], dict):
+                try:
+                    raw = float(risk_scores[dim].get("score", 3))
+                    risk_scores[dim]["score"] = max(1, min(5, int(round(raw))))
+                except (TypeError, ValueError):
+                    risk_scores[dim]["score"] = 3
+
+        # Normalize recommendation fields to valid values only
+        valid_recs = {"pursue": "Pursue", "monitor": "Monitor", "pass": "Pass"}
+        for field in ["recommendation", "financial_recommendation", "strategic_recommendation"]:
+            val = str(memo.get(field, "Pass")).strip().lower()
+            # Extract first matching keyword
+            for key in ["pursue", "monitor", "pass"]:
+                if key in val:
+                    memo[field] = valid_recs[key]
+                    break
+            else:
+                memo[field] = "Pass"
+
         log("Scoring deep tech risk framework...")
         weights = SECTOR_WEIGHTS[sector]
         risk_scores = memo.get("risk_scores", {})
@@ -309,6 +344,7 @@ Be specific with real numbers. Plain text, under 150 words."""
             score = raw.get("score", 3) if isinstance(raw, dict) else 3
             try:
                 score = float(score)
+                score = max(1.0, min(5.0, score))  # clamp to valid range
             except (TypeError, ValueError):
                 score = 3.0
             composite += score * w

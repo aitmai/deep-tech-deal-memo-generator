@@ -388,7 +388,7 @@ function renderMemo(data) {
     };
     let grid = dims.map(d => {
       const item = rs[d] || {score:3,reasoning:''};
-      const score = parseFloat(item.score) || 3;
+      const score = Math.min(5, Math.max(1, parseFloat(item.score) || 3));
       const color = riskColor(score);
       const barW = (score/5)*100;
       return `<div class="risk-item">
@@ -422,6 +422,29 @@ function renderMemo(data) {
     cards.push(makeCard('Deep Tech Risk Framework', '', html));
   }
 
+  // Strategic Fit
+  if (s.strategic_fit) {
+    const sf = s.strategic_fit;
+    const score = parseFloat(sf.score) || 3;
+    const color = score >= 4 ? '#34D399' : score >= 3 ? '#60A5FA' : '#FBBF24';
+    const label = score >= 4 ? 'Strong' : score >= 3 ? 'Moderate' : 'Weak';
+    const html = `
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;padding:.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <div style="text-align:center;min-width:60px">
+          <div style="font-family:var(--font-mono);font-size:26px;font-weight:700;color:${color}">${score}/5</div>
+          <div style="font-size:10px;color:${color};font-family:var(--font-display);font-weight:600">${label}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);font-family:var(--font-display);letter-spacing:.03em">Corporate fit score — weighted on strategic relevance to the corporate parent, partnership potential, and competitive intelligence value.</div>
+      </div>
+      <div class="memo-subhead">Corporate Relevance</div>
+      <p class="memo-text">${escHtml(sf.corporate_relevance||sf.automotive_relevance||'')}</p>
+      <div class="memo-subhead">Partnership Potential</div>
+      <p class="memo-text">${escHtml(sf.partnership_potential||'')}</p>
+      <div class="memo-subhead">Competitive Intelligence</div>
+      <p class="memo-text">${escHtml(sf.competitive_intelligence||'')}</p>`;
+    cards.push(makeCard('Corporate Fit — Strategic Value', '', html));
+  }
+
   // Strengths & Risks
   if (s.key_strengths || s.key_risks) {
     const html = `
@@ -434,26 +457,47 @@ function renderMemo(data) {
   // Recommendation
   if (s.recommendation) {
     const rec = s.recommendation.toLowerCase();
+    const finRec = (s.financial_recommendation||'').toLowerCase();
+    const stratRec = (s.strategic_recommendation||'').toLowerCase();
     const composite = data.composite_risk || '';
     const grade = s.company_grade || '';
     const gradeColor = grade === 'A' ? '#34D399' : grade === 'B' ? '#60A5FA' : grade === 'C' ? '#FBBF24' : grade === 'D' ? '#fb923c' : '#F87171';
 
+    const recColor = (r) => r === 'pursue' ? '#34D399' : r === 'monitor' ? '#FBBF24' : '#F87171';
+    const legend = `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;color:var(--text-muted);font-family:var(--font-display);line-height:1.8">
+      <span style="color:#34D399">PURSUE</span> = Strong fit, move to full diligence &nbsp;·&nbsp;
+      <span style="color:#FBBF24">MONITOR</span> = Interesting, revisit later &nbsp;·&nbsp;
+      <span style="color:#F87171">PASS</span> = Not a fit at this time
+    </div>`;
+
     const html = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.25rem;font-family:var(--font-display)">Financial Return</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${recColor(finRec)};margin-bottom:.4rem">${escHtml(s.financial_recommendation||'—')}</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.6">${escHtml(s.financial_recommendation_reasoning||'')}</div>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.25rem;font-family:var(--font-display)">Strategic Fit</div>
+          <div style="font-size:22px;font-weight:700;font-family:var(--font-display);color:${recColor(stratRec)};margin-bottom:.4rem">${escHtml(s.strategic_recommendation||'—')}</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.6">${escHtml(s.strategic_recommendation_reasoning||'')}</div>
+        </div>
+
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
 
         <div class="rec-card ${rec}">
-          <div class="rec-label">IC Recommendation — Fund Fit</div>
+          <div class="rec-label">IC Recommendation — Combined</div>
           <div class="rec-verdict">${escHtml(s.recommendation)}</div>
           <div class="rec-reasoning">${escHtml(s.recommendation_reasoning||'')}</div>
           ${composite ? `<div class="composite-row">
             <span class="composite-label">Composite Risk Score</span>
             <span class="composite-score" style="color:${parseFloat(composite) < 2.5 ? '#34D399' : parseFloat(composite) < 3.5 ? '#FBBF24' : '#F87171'}">${composite}/5.0 — ${parseFloat(composite) < 2.5 ? 'Low Risk' : parseFloat(composite) < 3.5 ? 'Moderate Risk' : 'High Risk'}</span>
           </div>` : ''}
-          <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;color:var(--text-muted);font-family:var(--font-display);line-height:1.8">
-            <span style="color:#34D399">PURSUE</span> = Strong thesis fit, move to full diligence &nbsp;·&nbsp;
-            <span style="color:#FBBF24">MONITOR</span> = Interesting but not ready — revisit &nbsp;·&nbsp;
-            <span style="color:#F87171">PASS</span> = Wrong fit for this fund's thesis or stage
-          </div>
+          ${legend}
         </div>
 
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1.25rem">
