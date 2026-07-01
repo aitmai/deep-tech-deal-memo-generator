@@ -27,12 +27,14 @@ def get_sheets_client():
     ]
     creds_json = os.getenv("MEMO_GOOGLE_CREDENTIALS_JSON")
     if not creds_json:
+        print("Cache: MEMO_GOOGLE_CREDENTIALS_JSON not set")
         return None
     try:
         creds_dict = json.loads(creds_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
-    except Exception:
+    except Exception as e:
+        print(f"Cache: credentials error: {e}")
         return None
 
 
@@ -99,8 +101,8 @@ def save_cache(company, sector, research_mode, result_dict):
         ts = datetime.now(timezone.utc).isoformat()
         row = [company, sector, ts, research_mode, json.dumps(result_dict)]
         ws.append_row(row)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Cache save error: {e}")
 # ── End cache ────────────────────────────────────────────────────────────────
 
 state = {
