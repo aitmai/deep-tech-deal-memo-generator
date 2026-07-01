@@ -4,53 +4,73 @@
 
 [![Author](https://img.shields.io/badge/author-aitmai-black?style=flat-square&logo=github)](https://github.com/aitmai)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Live](https://img.shields.io/badge/live-demo-00C9A7?style=flat-square)](https://deep-tech-deal-memo-generator.onrender.com)
 [![Deploy](https://img.shields.io/badge/deploy-Render-purple?style=flat-square)](https://render.com)
+
+**🔗 Live demo: [deep-tech-deal-memo-generator.onrender.com](https://deep-tech-deal-memo-generator.onrender.com)**
 
 ---
 
 ## Overview
 
-A Flask application that generates structured VC Investment Committee memos for deep tech startups using Claude API with live web search. Input a company name and sector — get a fully structured IC memo with market analysis, team assessment, competitive landscape, and a sector-weighted Deep Tech Risk Framework.
+A Flask application that generates structured VC Investment Committee memos for deep tech startups using Claude API. Input a company name and sector — get a fully structured IC memo with market analysis, team assessment, competitive landscape, sector-weighted risk scoring, corporate fit analysis, and a three-verdict recommendation framework.
 
-Built as a portfolio piece targeting deep tech VC roles — covering the four major deep tech verticals: AI, space tech, robotics/automation, and advanced materials.
+Built as a portfolio piece targeting deep tech VC and corporate CVC roles — covering the four major deep tech verticals: AI, space tech, robotics/automation, and advanced materials.
 
 ---
 
 ## Features
 
+### Three Research Modes
+| Mode | Model | Web Search | Cost |
+|---|---|---|---|
+| ⚡ Fast | Claude Haiku 4.5 | No | ~$0.02/run |
+| 🔎 Standard | Claude Haiku 4.5 | Yes (3 turns) | ~$0.03/run |
+| 🔍 Deep | Claude Sonnet 4.6 | Yes (6 turns) | ~$0.08/run |
+
+### Auto-Research
+When additional context is left blank, the app automatically researches the company (funding history, revenue, competitors, current status) before generating the memo — using live web search in Standard and Deep modes.
+
+### Airtable Memo Cache
+Results are cached in Airtable for 8 weeks. On repeated queries the app returns the cached result instantly at zero cost. A Force Refresh checkbox bypasses the cache when fresh analysis is needed.
+
 ### Sector-Specific Analysis
-Four deep tech verticals with tailored research frameworks, each with distinct market framing, risk focus, and moat assessment criteria:
+Four deep tech verticals with tailored research frameworks:
 - **AI** — model differentiation, data moat, foundation model commoditization risk, regulatory exposure
 - **Space Tech** — flight heritage, launch economics, FAA/FCC regulatory pathway, capital intensity
 - **Robotics & Automation** — labor displacement economics, hardware reliability, safety certifications, deployment environment
-- **Advanced Materials** — manufacturing scalability, unit economics at scale, supply chain integration, EPA/regulatory exposure
+- **Advanced Materials** — manufacturing scalability, unit economics at scale, supply chain integration, regulatory exposure
 
 ### IC Memo Sections
-- Executive Summary — investment thesis in 2-3 sentences
-- Market Opportunity — TAM / SAM / SOM with methodology and sector-specific market dynamics
-- Technology & Differentiation — technical moat and defensibility analysis
+- Executive Summary — investment thesis
+- Market Opportunity — TAM / SAM / SOM with sector-specific dynamics
+- Technology & Moat — technical differentiation and defensibility
 - Team Assessment — founder backgrounds and domain expertise
 - Competitive Landscape — structured competitor comparison table
 - Financial Snapshot — funding history, stage, valuation context
-- Deep Tech Risk Framework — 4-dimension risk scoring weighted by sector
-- IC Recommendation — Pass / Monitor / Pursue with reasoning
+- Deep Tech Risk Framework — 4-dimension sector-weighted risk scoring
+- Corporate Fit — strategic relevance, partnership potential, competitive intelligence value
+- Recommendation — three-verdict framework (Financial Return / Strategic Fit / Combined IC)
+- Company Quality Grade — A–F standalone business quality score
 
 ### Deep Tech Risk Framework
-The differentiator: sector-weighted scoring across 4 dimensions that separates deep tech diligence from generic SaaS deal analysis:
+Sector-weighted scoring across 4 dimensions:
 
 | Dimension | Description |
 |---|---|
-| Technical Risk | Technology readiness level — lab to production validation stage |
+| Technical Risk | Technology readiness — lab prototype vs. production-proven |
 | Capital Intensity | Total capital required to reach commercial scale |
 | Regulatory Exposure | Certification timelines and compliance complexity |
-| Hardware Dependency | Ratio of hardware to software in the business model |
+| Hardware Dependency | Hardware vs. software ratio in the business model |
 
-Each sector applies different weights — a Space Tech deal weights capital intensity at 35% (vs. 15% for AI) because the capital requirements to reach orbit are fundamentally different from shipping software.
+Space Tech weights capital intensity at 35% vs. 15% for AI — reflecting how fundamentally different the risk profiles are across deep tech verticals.
 
-### Live Pipeline
-- Real-time Server-Sent Events log showing analysis progress
-- Claude API with web search tool — pulls live company data, funding news, and competitive intelligence
-- Streaming status updates as each memo section is assembled
+### Three-Verdict Recommendation
+| Verdict | What it measures |
+|---|---|
+| Financial Return | Traditional VC lens — traction, moat, market size, capital efficiency |
+| Strategic Fit (Corporate) | Corporate CVC lens — relevance, partnership potential, competitive intelligence |
+| Combined IC Recommendation | Weighted verdict — strategic fit can override weak financials at early stage |
 
 ---
 
@@ -59,10 +79,12 @@ Each sector applies different weights — a Space Tech deal weights capital inte
 | Layer | Technology |
 |---|---|
 | Backend | Flask (Python) |
-| AI / LLM | Claude Sonnet + web search tool use (Anthropic API) |
+| AI / LLM | Claude Haiku 4.5 + Claude Sonnet 4.6 (Anthropic API) |
+| Web Search | Anthropic web_search tool (Standard + Deep modes) |
+| Cache | Airtable (8-week TTL, free tier) |
 | Frontend | Vanilla HTML/CSS/JS — no build step |
-| Streaming | Server-Sent Events |
-| Deployment | Render |
+| Streaming | Server-Sent Events (SSE) |
+| Deployment | Render (free tier) |
 
 ---
 
@@ -80,7 +102,7 @@ pip install -r requirements.txt
 
 # Set environment variables
 cp .env.example .env
-# Edit .env with your ANTHROPIC_API_KEY
+# Edit .env with your keys
 
 # Run
 python app.py
@@ -93,16 +115,29 @@ python app.py
 2. Go to [render.com](https://render.com) → New → Web Service → connect repo
 3. Build command: `pip install -r requirements.txt`
 4. Start command: `python app.py`
-5. Add environment variable: `ANTHROPIC_API_KEY`
+5. Add environment variables (see below)
 6. Deploy
 
 ---
 
 ## Environment Variables
 
-| Variable | Description | Where to get it |
+| Variable | Required | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude + web search | [console.anthropic.com](https://console.anthropic.com) |
+| `ANTHROPIC_API_KEY` | ✅ | Anthropic API key — [console.anthropic.com](https://console.anthropic.com) |
+| `AIRTABLE_API_TOKEN` | Optional | Airtable personal access token for memo caching |
+| `AIRTABLE_BASE_ID` | Optional | Airtable base ID containing the MemoCache table |
+
+If Airtable env vars are not set, the app runs without caching — every run calls Claude.
+
+---
+
+## Airtable Cache Setup
+
+1. Create an Airtable base with a table named `MemoCache`
+2. Add fields: `Company` (text), `Sector` (text), `Timestamp` (text), `ResearchMode` (text), `ResultJSON` (long text)
+3. Create a personal access token at [airtable.com/create/tokens](https://airtable.com/create/tokens) with `data.records:read` and `data.records:write` scopes
+4. Add `AIRTABLE_API_TOKEN` and `AIRTABLE_BASE_ID` to your Render environment variables
 
 ---
 
@@ -110,12 +145,12 @@ python app.py
 
 Enter any deep tech company and select the appropriate sector:
 
-- **Xona Space Systems** + Space Tech → PNT satellite constellation IC memo
 - **Pickle Robot** + Robotics & Automation → depalletizing robot IC memo
-- **Joby Aviation** + AI → eVTOL autonomy IC memo
-- **AM Batteries** + Advanced Materials → battery materials IC memo
-
-All are real Toyota Ventures portfolio companies — useful for calibrating output quality.
+- **Xona Space Systems** + Space Tech → PNT satellite constellation IC memo
+- **AM Batteries** + Advanced Materials → battery electrode manufacturing IC memo
+- **Glean** + AI → enterprise AI search IC memo
+- **Jasper** + AI → AI content generation platform IC memo
+- **ChimpRewriter** + AI → AI writing and paraphrasing tool IC memo
 
 ---
 
@@ -123,11 +158,11 @@ All are real Toyota Ventures portfolio companies — useful for calibrating outp
 
 ```
 deep-tech-deal-memo-generator/
-├── app.py               # Flask backend, Claude API, SSE streaming
+├── app.py               # Flask backend, Claude API, Airtable cache, SSE streaming
 ├── templates/
 │   └── index.html       # Full frontend — single file, no build needed
 ├── requirements.txt
-├── Procfile             # Render/Heroku deployment
+├── Procfile             # Render deployment
 ├── .env.example
 └── .gitignore
 ```
@@ -137,8 +172,8 @@ deep-tech-deal-memo-generator/
 ## Security
 
 - Never commit `.env` files — see `.gitignore`
-- API key stored as environment variable, never in code
-- All AI calls made server-side — key never exposed to client
+- All API keys stored as environment variables, never in code
+- All AI and cache calls made server-side — keys never exposed to client
 
 ---
 
@@ -146,9 +181,8 @@ deep-tech-deal-memo-generator/
 
 - [ ] PDF pitch deck upload and parsing
 - [ ] Word doc memo export (python-docx)
-- [ ] Google Sheets deal log integration
-- [ ] Multiple company batch comparison
-- [ ] Save/load memo history
+- [ ] Batch comparison across multiple companies
+- [ ] Portfolio tracking dashboard
 
 ---
 
