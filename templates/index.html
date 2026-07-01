@@ -232,34 +232,29 @@ footer a:hover{color:var(--accent)}
     </div>
 
     <button class="btn-run" id="btn-run" onclick="runAnalysis()">▶ Generate IC Memo</button>
-  </div>
-  </div>
 
-  <!-- Main layout -->
-  <div class="main-layout">
-
-    <!-- Pipeline log -->
-    <div class="pipeline-card">
-      <div class="pipeline-header">
-        <span class="pipeline-title">Analysis Pipeline</span>
+    <!-- Pipeline log — inline with inputs -->
+    <div id="pipeline-inline" style="display:none;margin-top:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:.6rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:var(--font-display);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)">Analysis Pipeline</span>
         <div style="display:flex;align-items:center;gap:.5rem">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">haiku-4-5</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)" id="pipeline-model-label">haiku-4-5</span>
           <span class="status-dot" id="status-dot"></span>
         </div>
       </div>
-      <div class="log-body" id="log-body">
+      <div class="log-body" id="log-body" style="height:160px">
         <div style="color:var(--text-muted);font-size:11px">Waiting for analysis...</div>
       </div>
     </div>
+  </div>
+  </div>
 
-    <!-- Memo sections -->
-    <div class="memo-sections" id="memo-sections">
-      <div class="empty-state">
-        <div class="icon">◎</div>
-        <p>Enter a company name and sector to generate an IC memo.</p>
-      </div>
+  <!-- Main layout — full width since pipeline moved inline -->
+  <div class="main" id="memo-sections" style="margin-top:1.5rem">
+    <div class="empty-state">
+      <div class="icon">◎</div>
+      <p>Enter a company name and sector to generate an IC memo.</p>
     </div>
-
   </div>
 
 </div>
@@ -511,8 +506,19 @@ async function runAnalysis() {
   }
 
   document.getElementById('btn-run').disabled = true;
-  document.getElementById('memo-sections').innerHTML = '<div class="empty-state"><div class="icon">◎</div><p>Analysis in progress...</p></div>';
+  document.getElementById('memo-sections').innerHTML = '';
   document.getElementById('log-body').innerHTML = '';
+
+  // Show inline pipeline
+  const pipelineEl = document.getElementById('pipeline-inline');
+  pipelineEl.style.display = 'block';
+
+  // Update model label
+  const modelLabel = document.getElementById('pipeline-model-label');
+  if (currentMode === 'sonnet') modelLabel.textContent = 'sonnet-4-6 + search';
+  else if (currentMode === 'standard') modelLabel.textContent = 'haiku-4-5 + search';
+  else modelLabel.textContent = 'haiku-4-5';
+
   setDot('running');
 
   await fetch('/run', {
