@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import threading
@@ -6,6 +7,11 @@ from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 import anthropic
+
+def clog(msg):
+    """Force-flush cache debug messages to Render logs."""
+    print(f"[CACHE] {msg}", flush=True)
+    sys.stdout.flush()
 
 load_dotenv()
 
@@ -27,34 +33,34 @@ def get_sheets_client():
     ]
     creds_json = os.getenv("MEMO_GOOGLE_CREDENTIALS_JSON")
     if not creds_json:
-        print("Cache: MEMO_GOOGLE_CREDENTIALS_JSON not set")
+        clog("MEMO_GOOGLE_CREDENTIALS_JSON not set")
         return None
     try:
         creds_dict = json.loads(creds_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
-        print(f"Cache: credentials error: {e}")
+        clog(f"credentials error: {e}")
         return None
 
 
 def get_cache_worksheet():
-    print("Cache: getting sheets client...")
+    clog("getting sheets client...")
     gc = get_sheets_client()
     if not gc:
-        print("Cache: sheets client is None — credentials failed")
+        clog("sheets client is None — credentials failed")
         return None
     try:
         sh = gc.open(CACHE_SHEET_NAME)
-        print(f"Cache: opened sheet '{CACHE_SHEET_NAME}'")
+        clog(f"opened sheet '{CACHE_SHEET_NAME}'")
     except Exception as e:
-        print(f"Cache: failed to open sheet '{CACHE_SHEET_NAME}': {e}")
+        clog(f"failed to open sheet '{CACHE_SHEET_NAME}': {e}")
         return None
     try:
         ws = sh.worksheet(CACHE_TAB_NAME)
-        print(f"Cache: found tab '{CACHE_TAB_NAME}'")
+        clog(f"found tab '{CACHE_TAB_NAME}'")
     except Exception as e:
-        print(f"Cache: tab '{CACHE_TAB_NAME}' not found, creating: {e}")
+        clog(f"tab '{CACHE_TAB_NAME}' not found, creating: {e}")
         ws = sh.add_worksheet(title=CACHE_TAB_NAME, rows=1000, cols=len(CACHE_HEADERS))
 
     # Always ensure headers exist in row 1
@@ -62,11 +68,11 @@ def get_cache_worksheet():
         first_row = ws.row_values(1)
         if not first_row or first_row[0] != CACHE_HEADERS[0]:
             ws.update([CACHE_HEADERS], "A1")
-            print("Cache: headers written")
+            clog("headers written")
         else:
-            print(f"Cache: headers OK — {first_row}")
+            clog(f"headers OK — {first_row}")
     except Exception as e:
-        print(f"Cache: header check error: {e}")
+        clog(f"header check error: {e}")
     return ws
 
 
@@ -124,9 +130,9 @@ def save_cache(company, sector, research_mode, result_dict):
             result_json = json.dumps(slim, separators=(',', ':'))
         row = [company, sector, ts, research_mode, result_json]
         ws.append_row(row, value_input_option='RAW')
-        print(f"Cache saved: {company} / {sector} ({len(result_json)} chars)")
+        clog(f"saved: {company} / {sector} ({len(result_json)} chars)")
     except Exception as e:
-        print(f"Cache save error: {e}")
+        clog(f"save error: {e}")
 # ── End cache ────────────────────────────────────────────────────────────────
 
 state = {
