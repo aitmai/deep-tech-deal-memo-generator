@@ -70,6 +70,9 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem
 .btn-run{width:100%;padding:11px;background:var(--accent);color:#0A0F1A;font-weight:700;font-family:var(--font-display);font-size:13px;border:none;border-radius:8px;cursor:pointer;transition:opacity .15s;letter-spacing:.02em;margin-top:1rem}
 .btn-run:hover{opacity:.88}
 .btn-run:disabled{opacity:.4;cursor:not-allowed}
+.mode-btn{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border-strong);color:var(--text-secondary);background:transparent;font-family:var(--font-display);transition:all .15s}
+.mode-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mode-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
 /* MAIN LAYOUT */
 .main-layout{display:grid;grid-template-columns:260px 1fr;gap:1.5rem;align-items:start}
@@ -210,7 +213,23 @@ footer a:hover{color:var(--accent)}
       </div>
     </div>
 
+    <div style="margin-top:.85rem;display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:2px">Research Mode</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="mode-desc">Haiku · Fast &amp; cheap · ~$0.03/run · Uses training data only</div>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="mode-btn active" id="mode-haiku" onclick="setMode('haiku')">
+          ⚡ Fast
+        </button>
+        <button class="mode-btn" id="mode-sonnet" onclick="setMode('sonnet')">
+          🔍 Deep
+        </button>
+      </div>
+    </div>
+
     <button class="btn-run" id="btn-run" onclick="runAnalysis()">▶ Generate IC Memo</button>
+  </div>
   </div>
 
   <!-- Main layout -->
@@ -251,6 +270,19 @@ footer a:hover{color:var(--accent)}
 <script>
 let eventSource = null;
 let pollInterval = null;
+let currentMode = 'haiku';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-haiku').classList.toggle('active', mode === 'haiku');
+  document.getElementById('mode-sonnet').classList.toggle('active', mode === 'sonnet');
+  const desc = document.getElementById('mode-desc');
+  if (mode === 'haiku') {
+    desc.textContent = 'Haiku · Fast & cheap · ~$0.03/run · Uses training data only';
+  } else {
+    desc.textContent = 'Sonnet + Web Search · Deep research · ~$0.08/run · Pulls live funding data & news';
+  }
+}
 
 // Pill sync with select
 document.querySelectorAll('.pill').forEach(pill => {
@@ -480,7 +512,7 @@ async function runAnalysis() {
   await fetch('/run', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({company, sector, extra_info: extra})
+    body: JSON.stringify({company, sector, extra_info: extra, research_mode: currentMode})
   });
 
   if (eventSource) eventSource.close();

@@ -136,7 +136,7 @@ Return ONLY this JSON object. Be specific and concise — 1-2 sentences per fiel
 }}"""
 
 
-def run_memo(company, sector, extra_info=""):
+def run_memo(company, sector, extra_info="", research_mode="haiku"):
     with state_lock:
         state.update({
             "status": "running",
@@ -153,7 +153,15 @@ def run_memo(company, sector, extra_info=""):
 
         # Auto-research step — gather company context if none provided
         if not extra_info:
-            log("Researching company via live web search...")
+            if research_mode == "sonnet":
+                log("Deep research mode: Sonnet + live web search (~$0.08/run)...")
+                research_model = "claude-sonnet-4-6"
+                use_web_search = True
+            else:
+                log("Fast mode: Haiku + live web search (~$0.03/run)...")
+                research_model = "claude-haiku-4-5-20251001"
+                use_web_search = True
+
             research_prompt = f"""Research {company} in the {sector} sector for VC investment analysis.
 
 Find and return:
@@ -171,14 +179,18 @@ Be specific with real numbers. Plain text, under 150 words."""
 
             research_messages = [{"role": "user", "content": research_prompt}]
             auto_context = ""
+            tools = [{"type": "web_search_20250305", "name": "web_search"}] if use_web_search else []
 
             for attempt in range(6):
-                research_response = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
+                research_kwargs = dict(
+                    model=research_model,
                     max_tokens=800,
-                    tools=[{"type": "web_search_20250305", "name": "web_search"}],
                     messages=research_messages
                 )
+                if tools:
+                    research_kwargs["tools"] = tools
+
+                research_response = client.messages.create(**research_kwargs)
                 for block in research_response.content:
                     if hasattr(block, "text") and block.text:
                         auto_context += block.text
@@ -201,7 +213,7 @@ Be specific with real numbers. Plain text, under 150 words."""
                     break
 
             extra_info = auto_context.strip()
-            log("Live research complete. Building sector analysis...")
+            log("Research complete. Building sector analysis...")
         else:
             log("Using provided context. Building sector analysis...")
 
@@ -323,6 +335,7 @@ def run():
     company = data.get("company", "").strip()
     sector = data.get("sector", "AI")
     extra_info = data.get("extra_info", "").strip()
+    research_mode = data.get("research_mode", "haiku")  # 'haiku' or 'sonnet'
 
     if not company:
         return jsonify({"error": "Company name required"}), 400
@@ -331,7 +344,7 @@ def run():
         if state["status"] == "running":
             return jsonify({"error": "Analysis already running"}), 409
 
-    t = threading.Thread(target=run_memo, args=(company, sector, extra_info), daemon=True)
+    t = threading.Thread(target=run_memo, args=(company, sector, extra_info, research_mode), daemon=True)
     t.start()
     return jsonify({"ok": True})
 
