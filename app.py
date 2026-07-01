@@ -18,121 +18,86 @@ load_dotenv()
 app = Flask(__name__)
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-# ── Google Sheets cache ──────────────────────────────────────────────────────
-CACHE_SHEET_NAME = "Deep-Tech-Memo-Cache"
-CACHE_TAB_NAME   = "MemoCache"
+# ── Airtable cache ──────────────────────────────────────────────────────────
+import requests as req
+
 CACHE_WEEKS      = 8
-CACHE_HEADERS    = ["Company", "Sector", "Timestamp", "ResearchMode", "ResultJSON"]
-
-def get_sheets_client():
-    import gspread
-    from google.oauth2.service_account import Credentials
-    SCOPES = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds_json = os.getenv("MEMO_GOOGLE_CREDENTIALS_JSON")
-    if not creds_json:
-        clog("MEMO_GOOGLE_CREDENTIALS_JSON not set")
-        return None
-    try:
-        creds_dict = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-        return gspread.authorize(creds)
-    except Exception as e:
-        clog(f"credentials error: {e}")
-        return None
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appPRlnlm12AP05TU")
+AIRTABLE_TOKEN   = os.getenv("AIRTABLE_API_TOKEN", "")
+AIRTABLE_TABLE   = "MemoCache"
+AIRTABLE_URL     = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_TABLE}"
 
 
-def get_cache_worksheet():
-    clog("getting sheets client...")
-    gc = get_sheets_client()
-    if not gc:
-        clog("sheets client is None — credentials failed")
-        return None
-    try:
-        sh = gc.open(CACHE_SHEET_NAME)
-        clog(f"opened sheet '{CACHE_SHEET_NAME}'")
-    except Exception as e:
-        clog(f"failed to open sheet '{CACHE_SHEET_NAME}': {e}")
-        return None
-    try:
-        ws = sh.worksheet(CACHE_TAB_NAME)
-        clog(f"found tab '{CACHE_TAB_NAME}'")
-    except Exception as e:
-        clog(f"tab '{CACHE_TAB_NAME}' not found, creating: {e}")
-        ws = sh.add_worksheet(title=CACHE_TAB_NAME, rows=1000, cols=len(CACHE_HEADERS))
-
-    # Always ensure headers exist in row 1
-    try:
-        first_row = ws.row_values(1)
-        if not first_row or first_row[0] != CACHE_HEADERS[0]:
-            ws.update([CACHE_HEADERS], "A1")
-            clog("headers written")
-        else:
-            clog(f"headers OK — {first_row}")
-    except Exception as e:
-        clog(f"header check error: {e}")
-    return ws
+def airtable_headers():
+    return {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
 
 def check_cache(company, sector):
     """Return (result_dict, saved_at_str) if valid cache found, else (None, None)."""
-    ws = get_cache_worksheet()
-    if not ws:
+    if not AIRTABLE_TOKEN:
+        clog("AIRTABLE_API_TOKEN not set — cache disabled")
         return None, None
     try:
-        rows = ws.get_all_records()
         cutoff = datetime.now(timezone.utc) - timedelta(weeks=CACHE_WEEKS)
-        # Normalize for comparison
         company_norm = company.lower().strip()
-        sector_norm = sector.lower().strip()
-        for row in reversed(rows):
-            row_company = str(row.get("Company","")).lower().strip()
-            row_sector = str(row.get("Sector","")).lower().strip()
-            if row_company == company_norm and row_sector == sector_norm:
-                ts_str = row.get("Timestamp","")
-                try:
-                    ts = datetime.fromisoformat(ts_str)
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=timezone.utc)
-                    if ts > cutoff:
-                        result = json.loads(row.get("ResultJSON","{}"))
-                        saved_at = ts.strftime("%B %d, %Y")
-                        return result, saved_at
-                except Exception:
-                    continue
-    except Exception:
-        pass
-    return None, None
+        sector_norm  = sector.lower().strip()
+
+        # Search Airtable for matching records
+        formula = f"AND(LOWER({{Company}})='{company_norm}', LOWER({{Sector}})='{sector_norm}')"
+        params  = {"filterByFormula": formula, "sort[0][field]": "Timestamp", "sort[0][direction]": "desc", "maxRecords": 1}
+        r = req.get(AIRTABLE_URL, headers=airtable_headers(), params=params, timeout=10)
+        r.raise_for_status()
+        records = r.json().get("records", [])
+
+        if not records:
+            clog(f"cache miss: {company} / {sector}")
+            return None, None
+
+        fields  = records[0].get("fields", {})
+        ts_str  = fields.get("Timestamp", "")
+        ts      = datetime.fromisoformat(ts_str)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+
+        if ts < cutoff:
+            clog(f"cache expired: {company} / {sector} saved {ts_str}")
+            return None, None
+
+        result   = json.loads(fields.get("ResultJSON", "{}"))
+        saved_at = ts.strftime("%B %d, %Y")
+        clog(f"cache hit: {company} / {sector} saved {saved_at}")
+        return result, saved_at
+
+    except Exception as e:
+        clog(f"check_cache error: {e}")
+        return None, None
 
 
 def save_cache(company, sector, research_mode, result_dict):
-    """Save memo result to Google Sheets cache."""
-    ws = get_cache_worksheet()
-    if not ws:
+    """Save memo result to Airtable cache."""
+    if not AIRTABLE_TOKEN:
         return
     try:
-        ts = datetime.now(timezone.utc).isoformat()
-        # Compact JSON, truncate if over 40K chars (Sheets cell limit is 50K)
         result_json = json.dumps(result_dict, separators=(',', ':'))
-        if len(result_json) > 40000:
-            # Store only the essential fields
-            slim = {k: result_dict[k] for k in [
-                "executive_summary", "technology_moat", "team_assessment",
-                "risk_scores", "strategic_fit", "key_risks", "key_strengths",
-                "financial_recommendation", "financial_recommendation_reasoning",
-                "strategic_recommendation", "strategic_recommendation_reasoning",
-                "recommendation", "recommendation_reasoning",
-                "company_grade", "company_grade_reasoning",
-                "_composite_risk"
-            ] if k in result_dict}
-            result_json = json.dumps(slim, separators=(',', ':'))
-        row = [company, sector, ts, research_mode, result_json]
-        ws.append_row(row, value_input_option='RAW')
+        payload = {
+            "records": [{
+                "fields": {
+                    "Company":      company,
+                    "Sector":       sector,
+                    "Timestamp":    datetime.now(timezone.utc).isoformat(),
+                    "ResearchMode": research_mode,
+                    "ResultJSON":   result_json
+                }
+            }]
+        }
+        r = req.post(AIRTABLE_URL, headers=airtable_headers(), json=payload, timeout=15)
+        r.raise_for_status()
         clog(f"saved: {company} / {sector} ({len(result_json)} chars)")
     except Exception as e:
-        clog(f"save error: {e}")
+        clog(f"save_cache error: {e}")
 # ── End cache ────────────────────────────────────────────────────────────────
 
 state = {
