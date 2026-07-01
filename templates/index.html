@@ -350,6 +350,12 @@ function renderMemo(data) {
     const rs = s.risk_scores;
     const dims = ['technical_risk','capital_intensity','regulatory_exposure','hardware_dependency'];
     const labels = {'technical_risk':'Technical Risk','capital_intensity':'Capital Intensity','regulatory_exposure':'Regulatory Exposure','hardware_dependency':'Hardware Dependency'};
+    const descriptions = {
+      'technical_risk': 'Technology readiness — lab prototype vs. production-proven',
+      'capital_intensity': 'Capital required to reach commercial scale',
+      'regulatory_exposure': 'Certification timelines and compliance complexity',
+      'hardware_dependency': 'Hardware vs. software ratio in the business model'
+    };
     let grid = dims.map(d => {
       const item = rs[d] || {score:3,reasoning:''};
       const score = parseFloat(item.score) || 3;
@@ -357,6 +363,7 @@ function renderMemo(data) {
       const barW = (score/5)*100;
       return `<div class="risk-item">
         <div class="risk-label">${labels[d]}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-bottom:.35rem">${descriptions[d]}</div>
         <div class="risk-score-row">
           <span class="risk-score-num" style="color:${color}">${score}/5</span>
           <div class="risk-bar-wrap"><div class="risk-bar-fill" style="width:${barW}%;background:${color}"></div></div>
@@ -364,7 +371,24 @@ function renderMemo(data) {
         <div class="risk-reasoning">${escHtml(item.reasoning||'')}</div>
       </div>`;
     }).join('');
-    const html = `<div class="risk-grid">${grid}</div>`;
+
+    const scaleLegend = `
+      <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+        <span style="font-size:10px;font-family:var(--font-display);color:var(--text-muted);margin-right:.25rem;padding-top:2px">RISK SCALE:</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(52,211,153,0.1);color:#34D399;border:1px solid rgba(52,211,153,0.25)">1 — Minimal</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(52,211,153,0.07);color:#6ee7b7;border:1px solid rgba(52,211,153,0.15)">2 — Low</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(251,191,36,0.1);color:#FBBF24;border:1px solid rgba(251,191,36,0.25)">3 — Moderate</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(248,113,113,0.07);color:#fca5a5;border:1px solid rgba(248,113,113,0.15)">4 — High</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(248,113,113,0.12);color:#F87171;border:1px solid rgba(248,113,113,0.3)">5 — Critical</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:1rem;line-height:1.5;padding:.6rem .75rem;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        <strong style="color:var(--text-secondary)">Composite score</strong> = weighted average across dimensions, sector-adjusted.
+        <span style="color:#34D399">Under 2.5</span> = low risk deal &nbsp;·&nbsp;
+        <span style="color:#FBBF24">2.5–3.5</span> = moderate, proceed with diligence &nbsp;·&nbsp;
+        <span style="color:#F87171">Above 3.5</span> = high risk, requires strong mitigants
+      </div>`;
+
+    const html = `${scaleLegend}<div class="risk-grid">${grid}</div>`;
     cards.push(makeCard('Deep Tech Risk Framework', '', html));
   }
 
@@ -385,7 +409,10 @@ function renderMemo(data) {
       <div class="rec-label">IC Recommendation</div>
       <div class="rec-verdict">${escHtml(s.recommendation)}</div>
       <div class="rec-reasoning">${escHtml(s.recommendation_reasoning||'')}</div>
-      ${composite ? `<div class="composite-row"><span class="composite-label">Composite Risk Score</span><span class="composite-score">${composite}/5.0</span></div>` : ''}
+      ${composite ? `<div class="composite-row">
+        <span class="composite-label">Composite Risk Score</span>
+        <span class="composite-score" style="color:${parseFloat(composite) < 2.5 ? '#34D399' : parseFloat(composite) < 3.5 ? '#FBBF24' : '#F87171'}">${composite}/5.0 — ${parseFloat(composite) < 2.5 ? 'Low Risk' : parseFloat(composite) < 3.5 ? 'Moderate Risk' : 'High Risk'}</span>
+      </div>` : ''}
     </div>`;
     cards.push(makeCard('Recommendation', '', html));
   }
