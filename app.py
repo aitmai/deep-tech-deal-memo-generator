@@ -88,53 +88,50 @@ SECTOR_WEIGHTS = {
 
 def build_memo_prompt(company, sector, extra_info=""):
     ctx = SECTOR_CONTEXT[sector]
-    return f"""You are a senior venture capital associate at a deep tech fund preparing an Investment Committee memo.
+    return f"""You are a senior VC associate at a deep tech fund preparing a concise Investment Committee memo.
 
 Company: {company}
 Sector: {sector}
-Additional context provided: {extra_info if extra_info else "None — research this company thoroughly."}
+Additional context: {extra_info if extra_info else "None provided."}
 
-Sector-specific guidance:
-- Market framing: {ctx['market_framing']}
-- Risk focus: {ctx['risk_focus']}
-- TAM approach: {ctx['tam_hint']}
-- Key moat keywords to assess: {ctx['moat_keywords']}
+Sector guidance:
+- Market: {ctx['market_framing']}
+- Risk: {ctx['risk_focus']}
+- TAM: {ctx['tam_hint']}
+- Moat: {ctx['moat_keywords']}
 
-Generate a thorough Investment Committee memo in this exact JSON structure. Be specific, analytical, and use real data where you can find it. Do not use placeholders:
+Return ONLY this JSON object. Be specific and concise — 1-2 sentences per field maximum. No preamble, no markdown fences:
 
 {{
-  "executive_summary": "2-3 sentence thesis paragraph. Lead with what the company does, why the timing is right, and the key investment thesis.",
+  "executive_summary": "2 sentence investment thesis.",
   "market_opportunity": {{
-    "tam": "Total Addressable Market estimate with methodology",
-    "sam": "Serviceable Addressable Market with reasoning",
-    "som": "Serviceable Obtainable Market realistic near-term",
-    "market_dynamics": "2-3 sentences on key market tailwinds specific to {sector}"
+    "tam": "TAM estimate with methodology",
+    "sam": "SAM with reasoning",
+    "som": "SOM near-term realistic",
+    "market_dynamics": "1-2 sentences on key tailwinds for {sector}"
   }},
-  "technology_moat": "2-3 sentences assessing the core technical differentiation and defensibility. Be specific about what makes this hard to replicate.",
-  "team_assessment": "2-3 sentences on founding team. Include relevant backgrounds, domain expertise, and any notable prior exits or technical credentials.",
+  "technology_moat": "1-2 sentences on technical differentiation and defensibility.",
+  "team_assessment": "1-2 sentences on founding team, domain expertise, credentials.",
   "competitive_landscape": [
-    {{"competitor": "Name", "funding": "$XM", "differentiation": "How this company differs"}}
+    {{"competitor": "Name", "funding": "$XM", "differentiation": "One sentence"}}
   ],
   "financial_snapshot": {{
-    "funding_history": "Known funding rounds and investors",
-    "current_stage": "Seed/Series A/etc",
-    "revenue_status": "Known revenue or traction metrics",
-    "burn_estimate": "Estimated burn rate if known, otherwise note unknown",
-    "valuation_context": "Last known valuation or comparable deals"
+    "funding_history": "Known rounds and investors",
+    "current_stage": "Stage",
+    "revenue_status": "Known traction or revenue",
+    "valuation_context": "Last known valuation or comp deals"
   }},
   "risk_scores": {{
-    "technical_risk": {{"score": 1-5, "reasoning": "One sentence explanation"}},
-    "capital_intensity": {{"score": 1-5, "reasoning": "One sentence explanation"}},
-    "regulatory_exposure": {{"score": 1-5, "reasoning": "One sentence explanation"}},
-    "hardware_dependency": {{"score": 1-5, "reasoning": "One sentence explanation"}}
+    "technical_risk": {{"score": 3, "reasoning": "One sentence"}},
+    "capital_intensity": {{"score": 3, "reasoning": "One sentence"}},
+    "regulatory_exposure": {{"score": 3, "reasoning": "One sentence"}},
+    "hardware_dependency": {{"score": 3, "reasoning": "One sentence"}}
   }},
-  "key_risks": ["Risk 1 specific to this company", "Risk 2", "Risk 3"],
+  "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
-  "recommendation": "Pass" or "Monitor" or "Pursue",
-  "recommendation_reasoning": "2-3 sentences explaining the recommendation. Be direct and analytical."
-}}
-
-Return ONLY the JSON object. No preamble, no markdown fences, no explanation outside the JSON."""
+  "recommendation": "Pass",
+  "recommendation_reasoning": "2 sentences. Be direct."
+}}"""
 
 
 def run_memo(company, sector, extra_info=""):
@@ -151,49 +148,27 @@ def run_memo(company, sector, extra_info=""):
 
     try:
         log(f"Initiating deep tech analysis: {company} ({sector})")
-        log("Searching for company data, funding history, and competitive landscape...")
+        log("Loading sector-specific analysis framework...")
         time.sleep(0.5)
 
         prompt = build_memo_prompt(company, sector, extra_info)
 
-        log("Running sector-specific analysis framework...")
+        log("Running IC memo generation via Claude Haiku...")
 
-        # Handle multi-turn tool use (web search requires agentic loop)
+        # Handle single-turn response (no web search - uses training data)
         messages = [{"role": "user", "content": prompt}]
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=3000,
+            messages=messages
+        )
+
+        # Extract text from response
         full_text = ""
-
-        for attempt in range(6):  # max 6 turns for tool use loop
-            response = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4000,
-                tools=[{"type": "web_search_20250305", "name": "web_search"}],
-                messages=messages
-            )
-
-            # Collect text from this response
-            for block in response.content:
-                if hasattr(block, "text") and block.text:
-                    full_text += block.text
-
-            # If stop reason is end_turn or no more tool use, we're done
-            if response.stop_reason == "end_turn":
-                break
-
-            # If tool_use, append assistant response and continue loop
-            if response.stop_reason == "tool_use":
-                messages.append({"role": "assistant", "content": response.content})
-                # Build tool results
-                tool_results = []
-                for block in response.content:
-                    if block.type == "tool_use":
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": "Search completed."
-                        })
-                messages.append({"role": "user", "content": tool_results})
-            else:
-                break
+        for block in response.content:
+            if hasattr(block, "text") and block.text:
+                full_text += block.text
 
         log("Parsing investment memo sections...")
 
@@ -218,6 +193,15 @@ def run_memo(company, sector, extra_info=""):
 
         if not clean:
             raise ValueError("No JSON content found in Claude response")
+
+        # Repair common JSON issues from LLM output
+        import re
+        # Remove trailing commas before } or ]
+        clean = re.sub(r',\s*([}\]])', r'\1', clean)
+        # Truncate to last complete JSON object if response was cut off
+        last_brace = clean.rfind('}')
+        if last_brace != -1:
+            clean = clean[:last_brace+1]
 
         memo = json.loads(clean)
 
