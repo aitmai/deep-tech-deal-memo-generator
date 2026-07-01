@@ -48,7 +48,14 @@ def get_cache_worksheet():
         ws = sh.worksheet(CACHE_TAB_NAME)
     except Exception:
         ws = sh.add_worksheet(title=CACHE_TAB_NAME, rows=1000, cols=len(CACHE_HEADERS))
-        ws.update([CACHE_HEADERS], "A1")
+
+    # Always ensure headers exist in row 1
+    try:
+        first_row = ws.row_values(1)
+        if not first_row or first_row[0] != CACHE_HEADERS[0]:
+            ws.update([CACHE_HEADERS], "A1")
+    except Exception:
+        pass
     return ws
 
 
@@ -60,9 +67,13 @@ def check_cache(company, sector):
     try:
         rows = ws.get_all_records()
         cutoff = datetime.now(timezone.utc) - timedelta(weeks=CACHE_WEEKS)
+        # Normalize for comparison
+        company_norm = company.lower().strip()
+        sector_norm = sector.lower().strip()
         for row in reversed(rows):
-            if (str(row.get("Company","")).lower() == company.lower() and
-                    str(row.get("Sector","")).lower() == sector.lower()):
+            row_company = str(row.get("Company","")).lower().strip()
+            row_sector = str(row.get("Sector","")).lower().strip()
+            if row_company == company_norm and row_sector == sector_norm:
                 ts_str = row.get("Timestamp","")
                 try:
                     ts = datetime.fromisoformat(ts_str)

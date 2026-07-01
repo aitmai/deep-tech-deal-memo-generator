@@ -544,6 +544,7 @@ function makeCard(title, badge, bodyHtml) {
 async function runAnalysis() {
   const company = document.getElementById('company').value.trim();
   const sector = document.getElementById('sector').value;
+  console.log('Running with sector:', sector); // debug
   const extra = document.getElementById('extra_info').value.trim();
 
   if (!company) {
