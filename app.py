@@ -210,7 +210,12 @@ def run_memo(company, sector, extra_info=""):
         risk_scores = memo.get("risk_scores", {})
         composite = 0
         for dim, w in weights.items():
-            score = risk_scores.get(dim, {}).get("score", 3)
+            raw = risk_scores.get(dim, {})
+            score = raw.get("score", 3) if isinstance(raw, dict) else 3
+            try:
+                score = float(score)
+            except (TypeError, ValueError):
+                score = 3.0
             composite += score * w
 
         with state_lock:

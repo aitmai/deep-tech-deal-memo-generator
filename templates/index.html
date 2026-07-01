@@ -352,7 +352,7 @@ function renderMemo(data) {
     const labels = {'technical_risk':'Technical Risk','capital_intensity':'Capital Intensity','regulatory_exposure':'Regulatory Exposure','hardware_dependency':'Hardware Dependency'};
     let grid = dims.map(d => {
       const item = rs[d] || {score:3,reasoning:''};
-      const score = item.score || 3;
+      const score = parseFloat(item.score) || 3;
       const color = riskColor(score);
       const barW = (score/5)*100;
       return `<div class="risk-item">
