@@ -222,11 +222,24 @@ Be specific with numbers. If uncertain, give a range. Keep it under 150 words to
         if not clean:
             raise ValueError("No JSON content found in Claude response")
 
-        # Repair common JSON issues from LLM output
+        # Step 1 — strip problematic control characters and non-printable chars
         import re
-        # Remove trailing commas before } or ]
+        # Remove control characters except tab, newline, carriage return
+        clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', clean)
+        # Replace curly/smart quotes with straight quotes
+        clean = clean.replace('\u201c', '"').replace('\u201d', '"')
+        clean = clean.replace('\u2018', "'").replace('\u2019', "'")
+        # Replace em-dash and en-dash with regular hyphen inside strings
+        clean = clean.replace('\u2014', '-').replace('\u2013', '-')
+
+        # Step 2 — use json_repair to fix any remaining structural issues
+        from json_repair import repair_json
+        clean = repair_json(clean, return_objects=False)
+
+        # Step 3 — remove trailing commas as extra safety
         clean = re.sub(r',\s*([}\]])', r'\1', clean)
-        # Truncate to first complete JSON object — handles "extra data" error
+
+        # Step 4 — truncate to first complete JSON object
         brace_count = 0
         end_pos = 0
         for i, ch in enumerate(clean):
