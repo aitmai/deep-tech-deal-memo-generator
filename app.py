@@ -158,30 +158,66 @@ def run_memo(company, sector, extra_info=""):
 
         log("Running sector-specific analysis framework...")
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4000,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        # Extract text from response
+        # Handle multi-turn tool use (web search requires agentic loop)
+        messages = [{"role": "user", "content": prompt}]
         full_text = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                full_text += block.text
+
+        for attempt in range(6):  # max 6 turns for tool use loop
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4000,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
+                messages=messages
+            )
+
+            # Collect text from this response
+            for block in response.content:
+                if hasattr(block, "text") and block.text:
+                    full_text += block.text
+
+            # If stop reason is end_turn or no more tool use, we're done
+            if response.stop_reason == "end_turn":
+                break
+
+            # If tool_use, append assistant response and continue loop
+            if response.stop_reason == "tool_use":
+                messages.append({"role": "assistant", "content": response.content})
+                # Build tool results
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": "Search completed."
+                        })
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break
 
         log("Parsing investment memo sections...")
 
-        # Clean and parse JSON
+        # Robust JSON extraction
         clean = full_text.strip()
-        if clean.startswith("```"):
-            clean = clean.split("```")[1]
-            if clean.startswith("json"):
-                clean = clean[4:]
-        if clean.endswith("```"):
-            clean = clean[:-3]
+        # Strip markdown fences
+        if "```json" in clean:
+            clean = clean.split("```json")[1].split("```")[0]
+        elif "```" in clean:
+            parts = clean.split("```")
+            if len(parts) >= 3:
+                clean = parts[1]
+                if clean.startswith("json"):
+                    clean = clean[4:]
+        # Find JSON object boundaries if text has surrounding content
+        if not clean.startswith("{"):
+            start = clean.find("{")
+            end = clean.rfind("}") + 1
+            if start != -1 and end > start:
+                clean = clean[start:end]
         clean = clean.strip()
+
+        if not clean:
+            raise ValueError("No JSON content found in Claude response")
 
         memo = json.loads(clean)
 
