@@ -2,6 +2,7 @@ import os
 import json
 import time
 import threading
+from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 import anthropic
@@ -10,6 +11,86 @@ load_dotenv()
 
 app = Flask(__name__)
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# ── Google Sheets cache ──────────────────────────────────────────────────────
+CACHE_SHEET_NAME = "Deep-Tech-Memo-Cache"
+CACHE_TAB_NAME   = "MemoCache"
+CACHE_WEEKS      = 8
+CACHE_HEADERS    = ["Company", "Sector", "Timestamp", "ResearchMode", "ResultJSON"]
+
+def get_sheets_client():
+    import gspread
+    from google.oauth2.service_account import Credentials
+    SCOPES = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds_json = os.getenv("MEMO_GOOGLE_CREDENTIALS_JSON")
+    if not creds_json:
+        return None
+    try:
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        return gspread.authorize(creds)
+    except Exception:
+        return None
+
+
+def get_cache_worksheet():
+    gc = get_sheets_client()
+    if not gc:
+        return None
+    try:
+        sh = gc.open(CACHE_SHEET_NAME)
+    except Exception:
+        return None
+    try:
+        ws = sh.worksheet(CACHE_TAB_NAME)
+    except Exception:
+        ws = sh.add_worksheet(title=CACHE_TAB_NAME, rows=1000, cols=len(CACHE_HEADERS))
+        ws.update([CACHE_HEADERS], "A1")
+    return ws
+
+
+def check_cache(company, sector):
+    """Return (result_dict, saved_at_str) if valid cache found, else (None, None)."""
+    ws = get_cache_worksheet()
+    if not ws:
+        return None, None
+    try:
+        rows = ws.get_all_records()
+        cutoff = datetime.now(timezone.utc) - timedelta(weeks=CACHE_WEEKS)
+        for row in reversed(rows):
+            if (str(row.get("Company","")).lower() == company.lower() and
+                    str(row.get("Sector","")).lower() == sector.lower()):
+                ts_str = row.get("Timestamp","")
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    if ts > cutoff:
+                        result = json.loads(row.get("ResultJSON","{}"))
+                        saved_at = ts.strftime("%B %d, %Y")
+                        return result, saved_at
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return None, None
+
+
+def save_cache(company, sector, research_mode, result_dict):
+    """Save memo result to Google Sheets cache."""
+    ws = get_cache_worksheet()
+    if not ws:
+        return
+    try:
+        ts = datetime.now(timezone.utc).isoformat()
+        row = [company, sector, ts, research_mode, json.dumps(result_dict)]
+        ws.append_row(row)
+    except Exception:
+        pass
+# ── End cache ────────────────────────────────────────────────────────────────
 
 state = {
     "status": "idle",
@@ -149,7 +230,7 @@ Return ONLY this JSON object. Be specific and concise — 1-2 sentences per fiel
 }}"""
 
 
-def run_memo(company, sector, extra_info="", research_mode="haiku"):
+def run_memo(company, sector, extra_info="", research_mode="haiku", force_refresh=False):
     with state_lock:
         state.update({
             "status": "running",
@@ -159,9 +240,27 @@ def run_memo(company, sector, extra_info="", research_mode="haiku"):
             "recommendation": None,
             "company": company,
             "sector": sector,
+            "from_cache": False,
         })
 
     try:
+        # ── Cache check ──────────────────────────────────────────────────────
+        if not force_refresh and not extra_info:
+            log("Checking memo cache...")
+            cached_result, saved_at = check_cache(company, sector)
+            if cached_result:
+                log(f"✓ Loaded from cache — saved {saved_at} (within {CACHE_WEEKS} weeks)")
+                with state_lock:
+                    state["sections"] = cached_result
+                    state["risk_scores"] = cached_result.get("risk_scores", {})
+                    state["recommendation"] = cached_result.get("recommendation", "Pass")
+                    state["composite_risk"] = cached_result.get("_composite_risk", None)
+                    state["status"] = "done"
+                    state["from_cache"] = True
+                return
+        elif force_refresh:
+            log("Force refresh — skipping cache, running fresh analysis...")
+        # ── End cache check ──────────────────────────────────────────────────
         log(f"Initiating deep tech analysis: {company} ({sector})")
 
         # Auto-research step — gather company context if none provided
@@ -358,6 +457,12 @@ Be specific with real numbers. Plain text, under 150 words."""
         log(f"Memo complete. Recommendation: {memo.get('recommendation', 'Monitor')}")
         log(f"Composite risk score: {round(composite, 2)}/5.0")
 
+        # Save to cache (store composite risk inside memo for retrieval)
+        memo["_composite_risk"] = round(composite, 2)
+        log("Saving to memo cache...")
+        save_cache(company, sector, research_mode, memo)
+        log("✓ Result cached for 8 weeks.")
+
         with state_lock:
             state["status"] = "done"
 
@@ -378,7 +483,8 @@ def run():
     company = data.get("company", "").strip()
     sector = data.get("sector", "AI")
     extra_info = data.get("extra_info", "").strip()
-    research_mode = data.get("research_mode", "haiku")  # 'haiku' or 'sonnet'
+    research_mode = data.get("research_mode", "haiku")
+    force_refresh = data.get("force_refresh", False)
 
     if not company:
         return jsonify({"error": "Company name required"}), 400
@@ -387,7 +493,7 @@ def run():
         if state["status"] == "running":
             return jsonify({"error": "Analysis already running"}), 409
 
-    t = threading.Thread(target=run_memo, args=(company, sector, extra_info, research_mode), daemon=True)
+    t = threading.Thread(target=run_memo, args=(company, sector, extra_info, research_mode, force_refresh), daemon=True)
     t.start()
     return jsonify({"ok": True})
 
