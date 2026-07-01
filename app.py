@@ -154,13 +154,20 @@ def run_memo(company, sector, extra_info="", research_mode="haiku"):
         # Auto-research step — gather company context if none provided
         if not extra_info:
             if research_mode == "sonnet":
-                log("Deep research mode: Sonnet + live web search (~$0.08/run)...")
+                log("Deep mode: Sonnet + web search, full research (~$0.08/run)...")
                 research_model = "claude-sonnet-4-6"
                 use_web_search = True
-            else:
-                log("Fast mode: Haiku + live web search (~$0.03/run)...")
+                max_turns = 6
+            elif research_mode == "standard":
+                log("Standard mode: Haiku + web search, lightweight research (~$0.03/run)...")
                 research_model = "claude-haiku-4-5-20251001"
                 use_web_search = True
+                max_turns = 3
+            else:
+                log("Fast mode: Haiku, training data only (~$0.02/run)...")
+                research_model = "claude-haiku-4-5-20251001"
+                use_web_search = False
+                max_turns = 1
 
             research_prompt = f"""Research {company} in the {sector} sector for VC investment analysis.
 
@@ -181,7 +188,7 @@ Be specific with real numbers. Plain text, under 150 words."""
             auto_context = ""
             tools = [{"type": "web_search_20250305", "name": "web_search"}] if use_web_search else []
 
-            for attempt in range(6):
+            for attempt in range(max_turns):
                 research_kwargs = dict(
                     model=research_model,
                     max_tokens=800,

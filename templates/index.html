@@ -222,6 +222,9 @@ footer a:hover{color:var(--accent)}
         <button class="mode-btn active" id="mode-haiku" onclick="setMode('haiku')">
           ⚡ Fast
         </button>
+        <button class="mode-btn" id="mode-standard" onclick="setMode('standard')">
+          🔎 Standard
+        </button>
         <button class="mode-btn" id="mode-sonnet" onclick="setMode('sonnet')">
           🔍 Deep
         </button>
@@ -275,12 +278,15 @@ let currentMode = 'haiku';
 function setMode(mode) {
   currentMode = mode;
   document.getElementById('mode-haiku').classList.toggle('active', mode === 'haiku');
+  document.getElementById('mode-standard').classList.toggle('active', mode === 'standard');
   document.getElementById('mode-sonnet').classList.toggle('active', mode === 'sonnet');
   const desc = document.getElementById('mode-desc');
   if (mode === 'haiku') {
-    desc.textContent = 'Haiku · Fast & cheap · ~$0.03/run · Uses training data only';
+    desc.textContent = 'Haiku · No web search · ~$0.02/run · Training data only';
+  } else if (mode === 'standard') {
+    desc.textContent = 'Haiku + Web Search · ~$0.03/run · Live data, lightweight research';
   } else {
-    desc.textContent = 'Sonnet + Web Search · Deep research · ~$0.08/run · Pulls live funding data & news';
+    desc.textContent = 'Sonnet + Web Search · Deep research · ~$0.08/run · Full live funding data & news';
   }
 }
 
