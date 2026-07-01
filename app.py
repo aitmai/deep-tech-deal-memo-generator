@@ -99,8 +99,23 @@ def save_cache(company, sector, research_mode, result_dict):
         return
     try:
         ts = datetime.now(timezone.utc).isoformat()
-        row = [company, sector, ts, research_mode, json.dumps(result_dict)]
-        ws.append_row(row)
+        # Compact JSON, truncate if over 40K chars (Sheets cell limit is 50K)
+        result_json = json.dumps(result_dict, separators=(',', ':'))
+        if len(result_json) > 40000:
+            # Store only the essential fields
+            slim = {k: result_dict[k] for k in [
+                "executive_summary", "technology_moat", "team_assessment",
+                "risk_scores", "strategic_fit", "key_risks", "key_strengths",
+                "financial_recommendation", "financial_recommendation_reasoning",
+                "strategic_recommendation", "strategic_recommendation_reasoning",
+                "recommendation", "recommendation_reasoning",
+                "company_grade", "company_grade_reasoning",
+                "_composite_risk"
+            ] if k in result_dict}
+            result_json = json.dumps(slim, separators=(',', ':'))
+        row = [company, sector, ts, research_mode, result_json]
+        ws.append_row(row, value_input_option='RAW')
+        print(f"Cache saved: {company} / {sector} ({len(result_json)} chars)")
     except Exception as e:
         print(f"Cache save error: {e}")
 # ── End cache ────────────────────────────────────────────────────────────────
