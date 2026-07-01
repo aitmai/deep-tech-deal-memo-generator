@@ -166,7 +166,7 @@ footer a:hover{color:var(--accent)}
 <nav>
   <a class="nav-brand" href="https://github.com/aitmai" target="_blank"><span>aitmai</span> / deep-tech-deal-memo</a>
   <span class="nav-tag">Deep Tech · IC Memo Generator</span>
-  <div class="nav-right"><a href="https://github.com/aitmai/deep-tech-deal-memo-generator" target="_blank">GitHub →</a></div>
+  <div class="nav-right"><span style="color:var(--text-muted);margin-right:1rem;font-family:var(--font-mono);font-size:11px">claude-haiku-4-5</span><a href="https://github.com/aitmai/deep-tech-deal-memo-generator" target="_blank">GitHub →</a></div>
 </nav>
 
 <div class="page">
@@ -220,7 +220,10 @@ footer a:hover{color:var(--accent)}
     <div class="pipeline-card">
       <div class="pipeline-header">
         <span class="pipeline-title">Analysis Pipeline</span>
-        <span class="status-dot" id="status-dot"></span>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">haiku-4-5</span>
+          <span class="status-dot" id="status-dot"></span>
+        </div>
       </div>
       <div class="log-body" id="log-body">
         <div style="color:var(--text-muted);font-size:11px">Waiting for analysis...</div>
