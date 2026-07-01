@@ -39,16 +39,22 @@ def get_sheets_client():
 
 
 def get_cache_worksheet():
+    print("Cache: getting sheets client...")
     gc = get_sheets_client()
     if not gc:
+        print("Cache: sheets client is None — credentials failed")
         return None
     try:
         sh = gc.open(CACHE_SHEET_NAME)
-    except Exception:
+        print(f"Cache: opened sheet '{CACHE_SHEET_NAME}'")
+    except Exception as e:
+        print(f"Cache: failed to open sheet '{CACHE_SHEET_NAME}': {e}")
         return None
     try:
         ws = sh.worksheet(CACHE_TAB_NAME)
-    except Exception:
+        print(f"Cache: found tab '{CACHE_TAB_NAME}'")
+    except Exception as e:
+        print(f"Cache: tab '{CACHE_TAB_NAME}' not found, creating: {e}")
         ws = sh.add_worksheet(title=CACHE_TAB_NAME, rows=1000, cols=len(CACHE_HEADERS))
 
     # Always ensure headers exist in row 1
@@ -56,8 +62,11 @@ def get_cache_worksheet():
         first_row = ws.row_values(1)
         if not first_row or first_row[0] != CACHE_HEADERS[0]:
             ws.update([CACHE_HEADERS], "A1")
-    except Exception:
-        pass
+            print("Cache: headers written")
+        else:
+            print(f"Cache: headers OK — {first_row}")
+    except Exception as e:
+        print(f"Cache: header check error: {e}")
     return ws
 
 
