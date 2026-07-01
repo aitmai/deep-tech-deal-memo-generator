@@ -12,7 +12,7 @@
 
 A Flask application that generates structured VC Investment Committee memos for deep tech startups using Claude API with live web search. Input a company name and sector — get a fully structured IC memo with market analysis, team assessment, competitive landscape, and a sector-weighted Deep Tech Risk Framework.
 
-Built as a portfolio piece targeting deep tech VC roles — specifically Toyota Ventures' Frontier Fund which invests in AI, space tech, robotics/automation, and advanced materials.
+Built as a portfolio piece targeting deep tech VC roles — covering the four major deep tech verticals: AI, space tech, robotics/automation, and advanced materials.
 
 ---
 
