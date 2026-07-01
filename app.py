@@ -226,10 +226,19 @@ Be specific with numbers. If uncertain, give a range. Keep it under 150 words to
         import re
         # Remove trailing commas before } or ]
         clean = re.sub(r',\s*([}\]])', r'\1', clean)
-        # Truncate to last complete JSON object if response was cut off
-        last_brace = clean.rfind('}')
-        if last_brace != -1:
-            clean = clean[:last_brace+1]
+        # Truncate to first complete JSON object — handles "extra data" error
+        brace_count = 0
+        end_pos = 0
+        for i, ch in enumerate(clean):
+            if ch == '{':
+                brace_count += 1
+            elif ch == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_pos = i + 1
+                    break
+        if end_pos > 0:
+            clean = clean[:end_pos]
 
         memo = json.loads(clean)
 
