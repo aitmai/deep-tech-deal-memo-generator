@@ -75,11 +75,10 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem
 .mode-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
 /* MAIN LAYOUT */
-.main-layout{display:grid;grid-template-columns:260px 1fr;gap:1.5rem;align-items:start}
+/* pipeline inline styles handled inline */
 
 /* PIPELINE LOG */
-.pipeline-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:sticky;top:68px}
-.pipeline-header{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+/* pipeline-card removed - now inline */
 .pipeline-title{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
 .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted)}
 .status-dot.running{background:var(--amber);animation:pulse 1s infinite}
@@ -157,10 +156,8 @@ footer a{color:var(--text-secondary);text-decoration:none}
 footer a:hover{color:var(--accent)}
 
 @media(max-width:800px){
-  .main-layout{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
   .risk-grid{grid-template-columns:1fr}
-  .pipeline-card{position:static}
 }
 </style>
 </head>
