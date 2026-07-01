@@ -405,15 +405,41 @@ function renderMemo(data) {
   if (s.recommendation) {
     const rec = s.recommendation.toLowerCase();
     const composite = data.composite_risk || '';
-    const html = `<div class="rec-card ${rec}">
-      <div class="rec-label">IC Recommendation</div>
-      <div class="rec-verdict">${escHtml(s.recommendation)}</div>
-      <div class="rec-reasoning">${escHtml(s.recommendation_reasoning||'')}</div>
-      ${composite ? `<div class="composite-row">
-        <span class="composite-label">Composite Risk Score</span>
-        <span class="composite-score" style="color:${parseFloat(composite) < 2.5 ? '#34D399' : parseFloat(composite) < 3.5 ? '#FBBF24' : '#F87171'}">${composite}/5.0 — ${parseFloat(composite) < 2.5 ? 'Low Risk' : parseFloat(composite) < 3.5 ? 'Moderate Risk' : 'High Risk'}</span>
-      </div>` : ''}
-    </div>`;
+    const grade = s.company_grade || '';
+    const gradeColor = grade === 'A' ? '#34D399' : grade === 'B' ? '#60A5FA' : grade === 'C' ? '#FBBF24' : grade === 'D' ? '#fb923c' : '#F87171';
+
+    const html = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+
+        <div class="rec-card ${rec}">
+          <div class="rec-label">IC Recommendation — Fund Fit</div>
+          <div class="rec-verdict">${escHtml(s.recommendation)}</div>
+          <div class="rec-reasoning">${escHtml(s.recommendation_reasoning||'')}</div>
+          ${composite ? `<div class="composite-row">
+            <span class="composite-label">Composite Risk Score</span>
+            <span class="composite-score" style="color:${parseFloat(composite) < 2.5 ? '#34D399' : parseFloat(composite) < 3.5 ? '#FBBF24' : '#F87171'}">${composite}/5.0 — ${parseFloat(composite) < 2.5 ? 'Low Risk' : parseFloat(composite) < 3.5 ? 'Moderate Risk' : 'High Risk'}</span>
+          </div>` : ''}
+          <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;color:var(--text-muted);font-family:var(--font-display);line-height:1.8">
+            <span style="color:#34D399">PURSUE</span> = Strong thesis fit, move to full diligence &nbsp;·&nbsp;
+            <span style="color:#FBBF24">MONITOR</span> = Interesting but not ready — revisit &nbsp;·&nbsp;
+            <span style="color:#F87171">PASS</span> = Wrong fit for this fund's thesis or stage
+          </div>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1.25rem">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.35rem;font-family:var(--font-display)">Company Quality Grade</div>
+          <div style="font-size:52px;font-weight:700;font-family:var(--font-display);color:${gradeColor};line-height:1;margin-bottom:.5rem">${escHtml(grade)}</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.6">${escHtml(s.company_grade_reasoning||'')}</div>
+          <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);font-family:var(--font-display)">
+            <span style="color:#34D399">A</span> = Exceptional &nbsp;·&nbsp;
+            <span style="color:#60A5FA">B</span> = Solid &nbsp;·&nbsp;
+            <span style="color:#FBBF24">C</span> = Viable &nbsp;·&nbsp;
+            <span style="color:#fb923c">D</span> = Challenged &nbsp;·&nbsp;
+            <span style="color:#F87171">F</span> = Not viable
+          </div>
+        </div>
+
+      </div>`;
     cards.push(makeCard('Recommendation', '', html));
   }
 

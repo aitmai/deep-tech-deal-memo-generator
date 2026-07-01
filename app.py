@@ -130,7 +130,9 @@ Return ONLY this JSON object. Be specific and concise — 1-2 sentences per fiel
   "key_risks": ["Risk 1", "Risk 2", "Risk 3"],
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
   "recommendation": "Pass",
-  "recommendation_reasoning": "2 sentences. Be direct."
+  "recommendation_reasoning": "2 sentences. Be direct. Focus on fund-thesis fit — does this company belong in a deep tech fund's portfolio?",
+  "company_grade": "A",
+  "company_grade_reasoning": "2 sentences. Grade the company as a standalone business independent of fund fit. Use A/B/C/D/F scale: A=exceptional business, B=solid with real potential, C=viable but challenged, D=struggling, F=not a real business."
 }}"""
 
 
